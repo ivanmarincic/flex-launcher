@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<io.github.twoloops.flexlauncher.homescreen.views.ScrollPanel xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+    <io.github.twoloops.flexlauncher.homescreen.views.Grid
+        android:id="@+id/homescreen_view_apps_grid"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+</io.github.twoloops.flexlauncher.homescreen.views.ScrollPanel>

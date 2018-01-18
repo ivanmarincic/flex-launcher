@@ -1,0 +1,5 @@
+<resources>
+    <string name="app.name">Flex Launcher</string>
+    <string name="homescreen.view.apps.item.image_description">Application icon</string>
+    <string name="homescreen.view.apps.item.default_label">Application label</string>
+</resources>
