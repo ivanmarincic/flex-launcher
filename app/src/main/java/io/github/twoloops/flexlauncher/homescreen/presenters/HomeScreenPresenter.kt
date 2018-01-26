@@ -3,19 +3,17 @@ package io.github.twoloops.flexlauncher.homescreen.presenters
 import android.Manifest
 import android.app.Activity
 import android.app.WallpaperManager
+import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Resources
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.support.design.widget.CoordinatorLayout
 import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
 import android.view.DragEvent
@@ -24,16 +22,19 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import io.github.twoloops.flexlauncher.R
-import io.github.twoloops.flexlauncher.Utils
+import io.github.twoloops.flexlauncher.helpers.Utils
+import io.github.twoloops.flexlauncher.database.controllers.HomeScreenAppsController
+import io.github.twoloops.flexlauncher.database.controllers.HomeScreenContentController
+import io.github.twoloops.flexlauncher.database.controllers.HomeScreenDashboardController
+import io.github.twoloops.flexlauncher.database.entities.HomeScreenItem
 import io.github.twoloops.flexlauncher.getPreference
 import io.github.twoloops.flexlauncher.homescreen.adapters.BaseGridAdapter
+import io.github.twoloops.flexlauncher.homescreen.adapters.BasePagerAdapter
 import io.github.twoloops.flexlauncher.homescreen.contracts.GridAdapter
 import io.github.twoloops.flexlauncher.homescreen.contracts.HomeScreen
-import io.github.twoloops.flexlauncher.homescreen.models.App
-import io.github.twoloops.flexlauncher.homescreen.models.GridItem
+import io.github.twoloops.flexlauncher.database.entities.App
 import io.github.twoloops.flexlauncher.homescreen.services.AppLoaderService
 import io.github.twoloops.flexlauncher.homescreen.services.WidgetLoaderService
 import io.github.twoloops.flexlauncher.homescreen.views.Grid
@@ -44,25 +45,25 @@ import io.github.twoloops.flexlauncher.homescreen.views.Pager
 class HomeScreenPresenter : HomeScreen.Presenter {
 
     private lateinit var view: HomeScreenView
-    private var draggedItem: GridItem<*>? = null
+    var draggedItem: HomeScreenItem<*>? = null
 
     override fun start(view: HomeScreen.View) {
         this.view = view as HomeScreenView
+
     }
 
-
     override fun initializePager(pager: Pager, grid: View, dashboard: View, wallpaperManager: WallpaperManager) {
-        pager.adapter = io.github.twoloops.flexlauncher.homescreen.adapters.PagerAdapter(grid, dashboard)
+        pager.adapter = BasePagerAdapter(grid, dashboard)
         if (Build.VERSION.SDK_INT >= 27) {
             pager.dark = Utils.isWallpaperDark(wallpaperManager)
         }
     }
 
-    override fun initializeGrid(parent: ViewGroup, items: ArrayList<GridItem<App>>): View {
+    override fun initializeGrid(parent: ViewGroup, items: ArrayList<HomeScreenItem<App>>): View {
         val gridView = LayoutInflater.from(view.applicationContext).inflate(R.layout.homescreen_view_apps, parent, false)
         val grid = gridView.findViewById<Grid>(R.id.homescreen_view_apps_grid)
         val gridAdapter = BaseGridAdapter(view as Activity)
-        gridAdapter.items = items as ArrayList<GridItem<*>>
+        gridAdapter.items = items as ArrayList<HomeScreenItem<*>>
         grid.setLayoutFeatures(Grid.FLAG_FEATURE_NAVIGATION_BAR or Grid.FLAG_FEATURE_STATUS_BAR)
         grid.droppable = false
         grid.adapter = gridAdapter
@@ -73,7 +74,7 @@ class HomeScreenPresenter : HomeScreen.Presenter {
     }
 
 
-    override fun initializeDashboard(parent: ViewGroup, items: ArrayList<GridItem<*>>): View {
+    override fun initializeDashboard(parent: ViewGroup, items: ArrayList<HomeScreenItem<*>>): View {
         val dashboardView = LayoutInflater.from(view.applicationContext).inflate(R.layout.homescreen_view_dashboard, parent, false)
         val grid = dashboardView.findViewById<Grid>(R.id.homescreen_view_dashboard_grid)
         val gridAdapter = BaseGridAdapter(view as Activity)
@@ -86,14 +87,23 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         return dashboardView
     }
 
-    override fun getAppsForGrid(): ArrayList<GridItem<App>> {
-        val apps: ArrayList<App> = AppLoaderService(view.applicationContext).getAllApps()
-        val gridItems: ArrayList<GridItem<App>> = ArrayList()
+    override fun getItemsForApps(): ArrayList<HomeScreenItem<App>> {
+        val gridItems: ArrayList<HomeScreenItem<App>> = ArrayList()
+        var apps: ArrayList<App> = HomeScreenAppsController.getInstance(view).getAll()
+        var hasBeenSaved = true
+        if (apps.count() == 0) {
+            hasBeenSaved = false
+            apps = AppLoaderService.getInstance(view).getAllApps()
+        }
         val columnCount = view.getPreference<Int>("ColumnCount", 5)
         var currentRow = 0
         var currentColumn = 0
         for (app: App in apps) {
-            gridItems.add(GridItem(currentRow, 1, currentColumn, 1, app))
+            if (!hasBeenSaved) {
+                HomeScreenAppsController.getInstance(view).save(app)
+            }
+            val item: HomeScreenItem<App> = HomeScreenItem(0, currentColumn, 1, currentRow, 1, app)
+            gridItems.add(item)
             currentColumn++
             if (currentColumn == columnCount) {
                 currentRow++
@@ -103,15 +113,13 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         return gridItems
     }
 
-    override fun getItemsForDashboard(): ArrayList<GridItem<*>> {
-        val items = ArrayList<GridItem<*>>()
-        items.add(getAppsForGrid()[19])
-        return items
+    override fun getItemsForDashboard(): ArrayList<HomeScreenItem<*>> {
+        return HomeScreenDashboardController.getInstance(view).getAll()
     }
 
-    override fun getWidgets(): ArrayList<GridItem<*>> {
+    override fun getWidgets(): ArrayList<HomeScreenItem<*>> {
         val widgets: ArrayList<AppWidgetProviderInfo> = WidgetLoaderService(view).getAllWidgets() as ArrayList<AppWidgetProviderInfo>
-        val items: ArrayList<GridItem<*>> = ArrayList()
+        val items: ArrayList<HomeScreenItem<*>> = ArrayList()
         widgets.mapTo(items) { view.dashboardGrid?.evaluateWidgetSize(it)!! }
         return items
     }
@@ -123,48 +131,52 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         } else {
             backgroundView.setImageDrawable(ColorDrawable(Color.BLACK))
             ActivityCompat.requestPermissions(view, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), Utils.REQUEST_READ_STORAGE_PERMISSION)
-
         }
     }
 
     override fun initializeDragging() {
-        view.appGrid!!.adapter!!.setOnDragAndDropListener(object : GridAdapter.DragAndDropListener {
-            override fun onDragStart(event: DragEvent, gridItem: GridItem<*>, itemView: View) {
+        view.appGrid!!.adapter!!.dragAndDropListener = object : GridAdapter.DragAndDropListener {
+            override fun onDragStart(event: DragEvent, gridItem: HomeScreenItem<*>, itemView: View) {
                 view.dashboardActions.alpha = 1f
                 if (view.pager.childCount == 2) {
-                    view.pager.currentItem = 1
+                    view.pager.currentPage = 1
                     draggedItem = gridItem
                 }
             }
 
-            override fun onDragEnd(event: DragEvent, gridItem: GridItem<*>, itemView: View) {
+            override fun onDragEnd(event: DragEvent, gridItem: HomeScreenItem<*>?, itemView: View?) {
                 view.dashboardActions.alpha = 0f
             }
 
-        })
-        view.dashboardGrid!!.adapter!!.setOnDragAndDropListener(object : GridAdapter.DragAndDropListener {
-            override fun onDragStart(event: DragEvent, gridItem: GridItem<*>, itemView: View) {
+        }
+        view.dashboardGrid!!.adapter!!.dragAndDropListener = object : GridAdapter.DragAndDropListener {
+            override fun onDragStart(event: DragEvent, gridItem: HomeScreenItem<*>, itemView: View) {
                 view.dashboardActions.alpha = 1f
                 if (view.pager.childCount == 2) {
-                    view.pager.currentItem = 1
+                    view.pager.currentPage = 1
                     draggedItem = gridItem
                 }
             }
 
-            override fun onDragEnd(event: DragEvent, gridItem: GridItem<*>, itemView: View) {
-                val itemToAdd = view.dashboardGrid!!.evaluatePosition(event.x, event.y, draggedItem!!.clone() as GridItem<*>)
-                if (!view.dashboardGrid!!.adapter!!.hasItemInCell(itemToAdd)) {
-                    view.dashboardGrid!!.adapter!!.removeItem(draggedItem!!)
-                    view.dashboardGrid!!.adapter!!.addItem(itemToAdd)
+            override fun onDragEnd(event: DragEvent, gridItem: HomeScreenItem<*>?, itemView: View?) {
+                if (draggedItem != null) {
+                    val itemToAdd = view.dashboardGrid!!.evaluatePosition(event.x, event.y, draggedItem!!.clone() as HomeScreenItem<*>)
+                    if (!view.dashboardGrid!!.adapter!!.hasItemInCell(itemToAdd)) {
+                        if (view.dashboardGrid!!.adapter!!.removeItem(draggedItem!!)) {
+                            view.dashboardGrid!!.adapter!!.addItem(itemToAdd)
+                            HomeScreenDashboardController.getInstance(view).update(itemToAdd)
+                        } else {
+                            HomeScreenDashboardController.getInstance(view).save(itemToAdd)
+                        }
+                    }
+                    view.dashboardActions.alpha = 0f
                 }
-                view.dashboardActions.alpha = 0f
             }
-
-        })
+        }
     }
 
     override fun initializeDraggingActions() {
-        val layoutParams: CoordinatorLayout.LayoutParams = view.dashboardActions.layoutParams as CoordinatorLayout.LayoutParams
+        val layoutParams: FrameLayout.LayoutParams = view.dashboardActions.layoutParams as FrameLayout.LayoutParams
         layoutParams.setMargins(0, Utils.getStatusBarHieght(view.resources), 0, 0)
         val actionInfo = view.dashboardActions.findViewById<TextView>(R.id.homescreen_view_dashboard_actions_info)
         val actionUninstall = view.dashboardActions.findViewById<TextView>(R.id.homescreen_view_dashboard_actions_uninstall)
@@ -180,7 +192,7 @@ class HomeScreenPresenter : HomeScreen.Presenter {
                     sourceView.visibility = View.VISIBLE
                     try {
                         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                        intent.data = Uri.parse("package:" + (draggedItem!!.content as App).activityInfo?.packageName)
+                        intent.data = Uri.parse("package:" + (draggedItem!!.content as App).packageName)
                         view.startActivity(intent)
 
                     } catch (e: ActivityNotFoundException) {
@@ -200,7 +212,7 @@ class HomeScreenPresenter : HomeScreen.Presenter {
                 }
                 DragEvent.ACTION_DROP -> {
                     val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE)
-                    intent.data = Uri.parse("package:" + (draggedItem!!.content as App).activityInfo?.packageName)
+                    intent.data = Uri.parse("package:" + (draggedItem!!.content as App).packageName)
                     view.startActivity(intent)
                     view.appGrid!!.adapter!!.removeItem(draggedItem!!)
                     view.dashboardGrid!!.adapter!!.removeItem(draggedItem!!)
@@ -227,17 +239,40 @@ class HomeScreenPresenter : HomeScreen.Presenter {
 
     override fun initializeWidgetsPanel() {
         val widgets: ArrayList<AppWidgetProviderInfo> = WidgetLoaderService(view).getAllWidgets() as ArrayList<AppWidgetProviderInfo>
-        val items: ArrayList<GridItem<*>> = ArrayList()
+        val items: ArrayList<HomeScreenItem<*>> = ArrayList()
         widgets.mapTo(items) { view.dashboardGrid?.evaluateWidgetSize(it)!! }
-        val imageView = ImageView(view)
-        imageView.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        try {
-            val manager = view.packageManager
-            val resources = manager.getResourcesForApplication(widgets[0].provider.packageName)
-            imageView.setImageDrawable(resources.getDrawable(widgets[0].previewImage))
-        } catch (e: Exception) {
-            e.printStackTrace()
+        view.dashboardGrid!!.adapter!!.touchGestureListener = object : GridAdapter.TouchGestureListener {
+            override fun onLongTouch() {
+                view.widgetsPanel.visibility = View.VISIBLE
+            }
+
+            override fun onDown() {
+                view.widgetsPanel.visibility = View.INVISIBLE
+            }
         }
-        view.widgetsPanel.addView(imageView)
+    }
+
+    override fun pickWidget(appWidgetProviderInfo: AppWidgetProviderInfo, appWidgetId: Int) {
+        if (appWidgetProviderInfo.configure != null) {
+            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
+            intent.component = appWidgetProviderInfo.configure
+            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            view.startActivityForResult(intent, Utils.REQUEST_ADD_WIDGET)
+        } else {
+            addWidget(appWidgetProviderInfo, appWidgetId)
+        }
+    }
+
+    override fun addWidget(appWidgetProviderInfo: AppWidgetProviderInfo, appWidgetId: Int) {
+        if (view.appWidgetManager.bindAppWidgetIdIfAllowed(appWidgetId, appWidgetProviderInfo.provider)) {
+            val hostView = view.appWidgetHost.createView(view, appWidgetId, appWidgetProviderInfo)
+            hostView?.setAppWidget(appWidgetId, appWidgetProviderInfo)
+            view.widgetsPanel.addView(hostView)
+        } else {
+            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
+            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, appWidgetProviderInfo.provider)
+            view.startActivityForResult(intent, Utils.REQUEST_BIND_WIDGET)
+        }
     }
 }

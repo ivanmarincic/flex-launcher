@@ -1,4 +1,4 @@
-package io.github.twoloops.flexlauncher
+package io.github.twoloops.flexlauncher.helpers
 
 import android.app.WallpaperManager
 import android.content.Context
@@ -11,6 +11,9 @@ import android.util.TypedValue
 class Utils {
     companion object {
         var REQUEST_READ_STORAGE_PERMISSION: Int = 3212
+        var REQUEST_ADD_WIDGET: Int = 5
+        var REQUEST_PICK_WIDGET: Int = 6
+        var REQUEST_BIND_WIDGET: Int = 7
 
         fun convertDip2Pixels(context: Context, dip: Float): Int {
             return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dip, context.resources.displayMetrics).toInt()

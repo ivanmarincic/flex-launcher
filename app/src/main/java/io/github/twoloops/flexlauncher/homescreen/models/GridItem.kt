@@ -34,7 +34,7 @@ class GridItem<ContentType>(row: Int, rowSpan: Int, column: Int, columnSpan: Int
             _content = value
         }
 
-    override public fun clone(): Any {
+    public override fun clone(): Any {
         return super.clone()
     }
 }

@@ -3,14 +3,16 @@ package io.github.twoloops.flexlauncher.homescreen.views
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.database.DataSetObserver
+import android.os.Handler
 import android.support.v4.view.GestureDetectorCompat
 import android.util.AttributeSet
 import android.util.SparseArray
 import android.view.*
-import io.github.twoloops.flexlauncher.Utils
+import io.github.twoloops.flexlauncher.helpers.Utils
+import io.github.twoloops.flexlauncher.database.entities.HomeScreenItem
 import io.github.twoloops.flexlauncher.homescreen.contracts.GridAdapter
-import io.github.twoloops.flexlauncher.homescreen.models.App
-import io.github.twoloops.flexlauncher.homescreen.models.GridItem
+import io.github.twoloops.flexlauncher.database.entities.App
+import io.github.twoloops.flexlauncher.database.entities.Widget
 
 
 open class Grid : ViewGroup {
@@ -51,6 +53,9 @@ open class Grid : ViewGroup {
     private val gestureDetector: GestureDetectorCompat by lazy(LazyThreadSafetyMode.NONE) {
         GestureDetectorCompat(context, _itemListener)
     }
+    private val touchGestureDetector: TouchGestureDetector by lazy(LazyThreadSafetyMode.NONE) {
+        TouchGestureDetector()
+    }
     private var dragEnded = true
     private var flags = 0
     private var statusBarHeight = 0
@@ -73,8 +78,17 @@ open class Grid : ViewGroup {
     }
 
     companion object {
-        val FLAG_FEATURE_STATUS_BAR = 1
-        val FLAG_FEATURE_NAVIGATION_BAR = 2
+        const val FLAG_FEATURE_STATUS_BAR = 1
+        const val FLAG_FEATURE_NAVIGATION_BAR = 2
+    }
+
+    init {
+        touchGestureDetector.onLongTouchListener(Runnable {
+            _adapter?.touchGestureListener?.onLongTouch()
+        })
+        touchGestureDetector.onDownListener(Runnable {
+            _adapter?.touchGestureListener?.onDown()
+        })
     }
 
     constructor(context: Context?) : super(context)
@@ -102,14 +116,14 @@ open class Grid : ViewGroup {
         if (!contextMenuOpen) {
             if (_adapter != null) {
                 for (i in 0 until _adapter!!.count) {
-                    val item: GridItem<*> = _adapter!!.getItem(i) as GridItem<*>
+                    val item: HomeScreenItem<*> = _adapter!!.getItem(i) as HomeScreenItem<*>
                     val view: View = getChildAt(i)
                     val left: Int = item.column * columnWidth
                     val top: Int = item.row * rowHeight + statusBarHeight
-                    view.run {
-                        measure(MeasureSpec.makeMeasureSpec(columnWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(rowHeight, MeasureSpec.EXACTLY))
-                        layout(left, top, left + (columnWidth * item.rowSpan), top + (rowHeight * item.columnSpan))
-                    }
+                    val right: Int = left + (columnWidth * item.rowSpan)
+                    val bottom: Int = top + (rowHeight * item.columnSpan)
+                    view.measure(MeasureSpec.makeMeasureSpec(columnWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(rowHeight, MeasureSpec.EXACTLY))
+                    view.layout(left, top, right, bottom)
                 }
             }
         }
@@ -125,7 +139,7 @@ open class Grid : ViewGroup {
         }
     }
 
-    fun openContextMenu(item: GridItem<App>, view: View) {
+    fun openContextMenu(item: HomeScreenItem<App>, view: View) {
         contextMenuOpen = true
         addView(view)
         val menuView = getChildAt(childCount - 1)
@@ -146,10 +160,7 @@ open class Grid : ViewGroup {
         if (event?.action == MotionEvent.ACTION_UP) {
             _adapter?.cancelTouchEvents(event)
         }
-//        if (event?.action == MotionEvent.ACTION_MOVE && readyForDrag && getDistance(dragOriginEvent!!, event) > 10f) {
-//            _itemTouchListener.onDragStart(dragOriginEvent!!)
-//        }
-        return super.onTouchEvent(event)
+        return touchGestureDetector.onTouchEvent(event)
     }
 
     override fun onDragEvent(event: DragEvent?): Boolean {
@@ -198,14 +209,6 @@ open class Grid : ViewGroup {
         }
     }
 
-    private fun addTouchListener(convertView: View, position: Int) {
-        convertView.setOnTouchListener({ view, event ->
-            _itemListener.gridItem = _adapter!!.getItem(position) as GridItem<*>?
-            _itemListener.itemView = view
-            gestureDetector.onTouchEvent(event)
-        })
-    }
-
     private fun addToTypesMap(type: Int, view: View?, typedViewsCache: SparseArray<List<View>>) {
         var singleTypeViews = typedViewsCache.get(type)
         if (singleTypeViews == null) {
@@ -225,19 +228,25 @@ open class Grid : ViewGroup {
         return null
     }
 
-    private fun getDistance(ev1: DragEvent, ev2: MotionEvent): Float {
-        val a = Math.sqrt(Math.pow((ev1.x - ev2.x).toDouble(), 2.0) + Math.pow((ev1.y - ev2.y).toDouble(), 2.0)).toFloat()
-        println(a)
-        return a
+    private fun addTouchListener(convertView: View, position: Int) {
+        convertView.setOnTouchListener({ view, event ->
+            _itemListener.gridItem = _adapter!!.getItem(position) as HomeScreenItem<*>?
+            _itemListener.itemView = view
+            gestureDetector.onTouchEvent(event)
+        })
     }
 
-    fun evaluatePosition(x: Float, y: Float, gridItem: GridItem<*>): GridItem<*> {
+    private fun getDistance(ev1: DragEvent, ev2: MotionEvent): Float {
+        return Math.sqrt(Math.pow((ev1.x - ev2.x).toDouble(), 2.0) + Math.pow((ev1.y - ev2.y).toDouble(), 2.0)).toFloat()
+    }
+
+    fun evaluatePosition(x: Float, y: Float, gridItem: HomeScreenItem<*>): HomeScreenItem<*> {
         gridItem.column = (x / columnWidth).toInt()
         gridItem.row = (y / rowHeight).toInt()
         return gridItem
     }
 
-    fun evaluateWidgetSize(widgetProviderInfo: AppWidgetProviderInfo): GridItem<*> {
+    fun evaluateWidgetSize(widgetProviderInfo: AppWidgetProviderInfo): HomeScreenItem<*> {
         var width = Math.ceil(widgetProviderInfo.minWidth.toDouble() / columnWidth).toInt()
         if (width > columnCount) {
             width = columnCount
@@ -246,12 +255,47 @@ open class Grid : ViewGroup {
         if (height > rowCount) {
             height = rowCount
         }
-        return GridItem(0, height, 0, width, widgetProviderInfo)
+        return HomeScreenItem(0, 0, height, 0, width, Widget(0))
+    }
+
+    inner class TouchGestureDetector {
+
+        var handler: Handler = Handler()
+        var longTouchCallback: Runnable? = null
+        var downTouchCallback: Runnable? = null
+
+        fun onTouchEvent(event: MotionEvent?): Boolean {
+
+            when (event?.action) {
+                MotionEvent.ACTION_UP -> {
+                    handler.removeCallbacks(longTouchCallback)
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(longTouchCallback)
+                    return true
+                }
+                MotionEvent.ACTION_DOWN -> {
+                    downTouchCallback?.run()
+                    handler.postDelayed(longTouchCallback, ViewConfiguration.getLongPressTimeout().toLong())
+                    return true
+                }
+            }
+            return false
+        }
+
+        fun onDownListener(callback: Runnable) {
+            downTouchCallback = callback
+        }
+
+        fun onLongTouchListener(callback: Runnable) {
+            longTouchCallback = callback
+        }
     }
 
     inner class ItemGestureDetector : GestureDetector.SimpleOnGestureListener() {
 
-        var gridItem: GridItem<*>? = null
+        var gridItem: HomeScreenItem<*>? = null
         var itemView: View? = null
 
         override fun onShowPress(e: MotionEvent?) {
@@ -294,7 +338,8 @@ open class Grid : ViewGroup {
         }
 
         fun onDragEnd(e: DragEvent) {
-            _adapter!!.onDragEnd(e, gridItem!!, itemView!!)
+            _adapter!!.onDragEnd(e, gridItem, itemView)
+
         }
     }
 

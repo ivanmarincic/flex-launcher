@@ -1,9 +1,14 @@
 package io.github.twoloops.flexlauncher.homescreen.views
 
 import android.app.WallpaperManager
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.view.WindowManager
@@ -12,14 +17,13 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Toast
 import android.widget.Toast.makeText
+import com.facebook.stetho.Stetho
 import io.github.twoloops.flexlauncher.R
-import io.github.twoloops.flexlauncher.Utils
+import io.github.twoloops.flexlauncher.helpers.Utils
 import io.github.twoloops.flexlauncher.bindView
 import io.github.twoloops.flexlauncher.homescreen.contracts.HomeScreen
-import io.github.twoloops.flexlauncher.homescreen.models.App
-import io.github.twoloops.flexlauncher.homescreen.models.GridItem
 import io.github.twoloops.flexlauncher.homescreen.presenters.HomeScreenPresenter
-import io.github.twoloops.flexlauncher.homescreen.services.WidgetLoaderService
+import java.io.File
 
 
 class HomeScreenView : AppCompatActivity(), HomeScreen.View {
@@ -32,6 +36,12 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
     val widgetsPanel by bindView<FrameLayout>(R.id.homescreen_view_widgets_list)
     var appGrid: Grid? = null
     var dashboardGrid: Grid? = null
+    val appWidgetManager: AppWidgetManager by lazy(LazyThreadSafetyMode.NONE) {
+        AppWidgetManager.getInstance(this)
+    }
+    val appWidgetHost: AppWidgetHost by lazy(LazyThreadSafetyMode.NONE) {
+        AppWidgetHost(this, R.id.homescreen_view_widgets_list)
+    }
     private var pagerInitialized = false
 
     private val wallpaperManager: WallpaperManager by lazy {
@@ -47,12 +57,13 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
         }
         super.onCreate(savedInstanceState)
         setContentView(R.layout.homescreen_view)
+        Stetho.initializeWithDefaults(this);
         presenter = HomeScreenPresenter()
         presenter.start(this)
         presenter.initializeBackground(backgroundView, wallpaperManager)
         presenter.initializePager(
                 pager,
-                presenter.initializeGrid(pager, presenter.getAppsForGrid()),
+                presenter.initializeGrid(pager, presenter.getItemsForApps()),
                 presenter.initializeDashboard(pager, presenter.getItemsForDashboard()),
                 wallpaperManager)
         pagerInitialized = true
@@ -61,10 +72,20 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
         presenter.initializeWidgetsPanel()
     }
 
+    override fun onStart() {
+        super.onStart()
+        appWidgetHost.startListening()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        appWidgetHost.stopListening()
+    }
+
     override fun onResume() {
         super.onResume()
         overridePendingTransition(0, 0)
-        if (pager.currentItem == 0) {
+        if (pager.currentPage == 0) {
             if (pagerInitialized) {
                 pager.resume()
             }
@@ -95,6 +116,22 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
                     presenter.initializeBackground(backgroundView, wallpaperManager)
                 } else {
                     makeText(this, "Cant set wallpaper without storage permission", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    public override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode == RESULT_OK) {
+            when (requestCode) {
+                Utils.REQUEST_ADD_WIDGET, Utils.REQUEST_BIND_WIDGET -> {
+                    if (data != null) {
+                        val appWidgetId = data.extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                        if (appWidgetId != -1) {
+                            presenter.addWidget(appWidgetManager!!.getAppWidgetInfo(appWidgetId), appWidgetId)
+                        }
+                    }
                 }
             }
         }

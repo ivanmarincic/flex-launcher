@@ -12,19 +12,22 @@ import android.database.DataSetObserver
 import android.os.Build
 import android.os.Process
 import android.view.*
-import android.widget.*
+import android.widget.ImageView
+import android.widget.TextView
 import io.github.twoloops.flexlauncher.R
+import io.github.twoloops.flexlauncher.database.entities.HomeScreenItem
 import io.github.twoloops.flexlauncher.homescreen.contracts.GridAdapter
-import io.github.twoloops.flexlauncher.homescreen.models.App
-import io.github.twoloops.flexlauncher.homescreen.models.GridItem
+import io.github.twoloops.flexlauncher.database.entities.App
 import io.github.twoloops.flexlauncher.homescreen.services.HapticFeedbackService
 import io.github.twoloops.flexlauncher.homescreen.views.Grid
 
 
 open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
-    var items: ArrayList<GridItem<*>>? = null
+
+    var items: ArrayList<HomeScreenItem<*>>? = null
     open var observer: DataSetObserver? = null
-    open var dragAndDropListener: GridAdapter.DragAndDropListener? = null
+    override var dragAndDropListener: GridAdapter.DragAndDropListener? = null
+    override var touchGestureListener: GridAdapter.TouchGestureListener? = null
     open val hapticFeedbackService: HapticFeedbackService by lazy(LazyThreadSafetyMode.NONE) {
         HapticFeedbackService(activity)
     }
@@ -37,14 +40,14 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
         return convertView ?: when (getItemViewType(position)) {
             0 -> {
                 val rootView: View = convertView ?: LayoutInflater.from(parent!!.context).inflate(R.layout.homescreen_view_apps_item, parent, false)
-                val item = getItem(position) as GridItem<App>
+                val item = getItem(position) as HomeScreenItem<App>
                 val textView: TextView = rootView.findViewById(R.id.homescreen_view_apps_app_label)
                 val imageView: ImageView = rootView.findViewById(R.id.homescreen_view_apps_app_icon)
-                textView.text = item.content?.name ?: ""
+                textView.text = item.content.label
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    imageView.setImageDrawable(item.content?.icon)
+                    imageView.setImageDrawable(item.content.getIconDrawable(activity))
                 } else {
-                    imageView.setImageDrawable(item.content?.icon)
+                    imageView.setImageDrawable(item.content.getIconDrawable(activity))
                 }
                 return rootView
             }
@@ -65,7 +68,7 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
         }
     }
 
-    override fun addItem(gridItem: GridItem<*>): Boolean {
+    override fun addItem(gridItem: HomeScreenItem<*>): Boolean {
         return if (hasItemInCell(gridItem)) {
             false
         } else {
@@ -75,7 +78,7 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
         }
     }
 
-    override fun removeItem(gridItem: GridItem<*>): Boolean {
+    override fun removeItem(gridItem: HomeScreenItem<*>): Boolean {
         if(items!!.remove(gridItem)){
             notifyDataChanged()
             return true
@@ -83,15 +86,15 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
         return false
     }
 
-    override fun hasItemInCell(gridItem: GridItem<*>): Boolean {
+    override fun hasItemInCell(gridItem: HomeScreenItem<*>): Boolean {
         return items!!.filter { it.row == gridItem.row && it.column == gridItem.column }.count() > 0
     }
 
-    override fun hasItem(gridItem: GridItem<*>): Boolean {
+    override fun hasItem(gridItem: HomeScreenItem<*>): Boolean {
         return items!!.indexOf(gridItem) != -1
     }
 
-    override fun getItem(position: Int): GridItem<*>? {
+    override fun getItem(position: Int): HomeScreenItem<*>? {
         return items?.get(position)
     }
 
@@ -133,14 +136,15 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
         }
     }
 
-    override fun onPress(gridItem: GridItem<*>, itemView: View) {
+    override fun onPress(gridItem: HomeScreenItem<*>, itemView: View) {
         activity.startActivity((gridItem.content!! as App).launchIntent)
         activity.overridePendingTransition(0, 0)
+        touchGestureListener?.onDown()
         hapticFeedbackService.sendTouchFeedback(activity)
     }
 
     @TargetApi(Build.VERSION_CODES.N_MR1)
-    override fun onLongPress(gridItem: GridItem<*>, itemView: View) {
+    override fun onLongPress(gridItem: HomeScreenItem<*>, itemView: View) {
         val menuView: ViewGroup = LayoutInflater.from(activity).inflate(R.layout.homescreen_view_apps_menu, itemView.parent as Grid, false) as ViewGroup
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
             val launcherApps = activity.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
@@ -164,26 +168,22 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
     override fun cancelTouchEvents(e: MotionEvent?) {
     }
 
-    override fun startDrag(gridItem: GridItem<*>, itemView: View) {
-        val clipItem: ClipData.Item = ClipData.Item((gridItem.content!! as App).name)
-        val clipData = ClipData((gridItem.content!! as App).name, arrayOf(ClipDescription.MIMETYPE_TEXT_PLAIN), clipItem)
+    override fun startDrag(gridItem: HomeScreenItem<*>, itemView: View) {
+        val clipItem: ClipData.Item = ClipData.Item((gridItem.content!! as App).label)
+        val clipData = ClipData((gridItem.content!! as App).label, arrayOf(ClipDescription.MIMETYPE_TEXT_PLAIN), clipItem)
         val shadowBuilder: View.DragShadowBuilder = View.DragShadowBuilder(itemView)
         itemView.startDrag(clipData, shadowBuilder, itemView, 0)
     }
 
-    override fun onDragStart(event: DragEvent, gridItem: GridItem<*>, itemView: View) {
+    override fun onDragStart(event: DragEvent, gridItem: HomeScreenItem<*>, itemView: View) {
         val view = event.localState as View
         view.visibility = View.INVISIBLE
         dragAndDropListener?.onDragStart(event, gridItem, itemView)
     }
 
-    override fun onDragEnd(event: DragEvent, gridItem: GridItem<*>, itemView: View) {
+    override fun onDragEnd(event: DragEvent, gridItem: HomeScreenItem<*>?, itemView: View?) {
         val view = event.localState as View
         view.visibility = View.VISIBLE
         dragAndDropListener?.onDragEnd(event, gridItem, itemView)
-    }
-
-    override fun setOnDragAndDropListener(listener: GridAdapter.DragAndDropListener) {
-        dragAndDropListener = listener
     }
 }
