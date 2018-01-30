@@ -15,9 +15,10 @@ class HomeScreen {
 
     interface Presenter {
         fun start(view: View)
-        fun initializePager(pager: Pager, grid: android.view.View, dashboard: android.view.View, wallpaperManager: WallpaperManager)
+        fun initializePager(pager: Pager, grid: android.view.View, dashboard: android.view.View, settingsPanel: android.view.View, wallpaperManager: WallpaperManager)
         fun initializeGrid(parent: ViewGroup, items: ArrayList<HomeScreenItem<App>>): android.view.View
         fun initializeDashboard(parent: ViewGroup, items: ArrayList<HomeScreenItem<*>>): android.view.View
+        fun initializeSettingsPanel(parent: ViewGroup): android.view.View
         fun initializeBackground(backgroundView: ImageView, wallpaperManager: WallpaperManager)
         fun initializeDragging()
         fun initializeDraggingActions()

@@ -3,6 +3,7 @@ package io.github.twoloops.flexlauncher.database.entities
 import android.content.Context
 import io.github.twoloops.flexlauncher.database.controllers.HomeScreenAppsController
 import io.github.twoloops.flexlauncher.database.controllers.HomeScreenContentController
+import io.github.twoloops.flexlauncher.database.controllers.HomeScreenDashboardController
 import org.jetbrains.anko.db.RowParser
 import org.jetbrains.anko.db.rowParser
 
@@ -23,16 +24,22 @@ class HomeScreenItem<ContentType : BaseEntity>(var id: Long, var column: Int, va
     companion object {
         fun getParser(context: Context): RowParser<HomeScreenItem<*>> {
             return rowParser { id: Long, column: Int, columnSpan: Int, row: Int, rowSpan: Int, content: Long ->
+                val defaultEntity = object : BaseEntity {
+                    override var id: Long = 0
+                }
                 val contentConnection: Content = HomeScreenContentController.getInstance(context).getById(content)
-                val contentObject: BaseEntity = when (contentConnection.type) {
+                var contentObject: BaseEntity? = when (contentConnection.type) {
                     1 -> {
                         HomeScreenAppsController.getInstance(context).getById(contentConnection.contentId)
                     }
-                    else -> object : BaseEntity{
-                        override var id: Long = 0
-                    }
+                    else -> defaultEntity
+                }
+                if (contentObject == null) {
+                    HomeScreenDashboardController.getInstance(context).delete(id)
+                    contentObject = defaultEntity
                 }
                 HomeScreenItem(id, column, columnSpan, row, rowSpan, contentObject)
+
             }
         }
     }

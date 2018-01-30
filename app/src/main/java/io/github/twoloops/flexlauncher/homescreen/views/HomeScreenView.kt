@@ -3,12 +3,10 @@ package io.github.twoloops.flexlauncher.homescreen.views
 import android.app.WallpaperManager
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.view.WindowManager
@@ -19,11 +17,10 @@ import android.widget.Toast
 import android.widget.Toast.makeText
 import com.facebook.stetho.Stetho
 import io.github.twoloops.flexlauncher.R
-import io.github.twoloops.flexlauncher.helpers.Utils
 import io.github.twoloops.flexlauncher.bindView
+import io.github.twoloops.flexlauncher.helpers.Utils
 import io.github.twoloops.flexlauncher.homescreen.contracts.HomeScreen
 import io.github.twoloops.flexlauncher.homescreen.presenters.HomeScreenPresenter
-import java.io.File
 
 
 class HomeScreenView : AppCompatActivity(), HomeScreen.View {
@@ -65,6 +62,7 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
                 pager,
                 presenter.initializeGrid(pager, presenter.getItemsForApps()),
                 presenter.initializeDashboard(pager, presenter.getItemsForDashboard()),
+                presenter.initializeSettingsPanel(pager),
                 wallpaperManager)
         pagerInitialized = true
         presenter.initializeDragging()

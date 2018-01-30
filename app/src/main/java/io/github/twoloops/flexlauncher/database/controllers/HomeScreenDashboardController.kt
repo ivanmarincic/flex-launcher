@@ -2,6 +2,7 @@ package io.github.twoloops.flexlauncher.database.controllers
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import io.github.twoloops.flexlauncher.database.entities.Content
 import io.github.twoloops.flexlauncher.database.entities.HomeScreenItem
 import io.github.twoloops.flexlauncher.database.helpers.DatabaseOpenHelper
 import io.github.twoloops.flexlauncher.helpers.SingletonHolder
@@ -22,26 +23,39 @@ class HomeScreenDashboardController private constructor(context: Context) {
     fun save(item: HomeScreenItem<*>): HomeScreenItem<*> {
         val contentId = HomeScreenContentController.getInstance(context)
                 .save(item.content.id, item.getType(item.content))
-        return HomeScreenItem(helper.writableDatabase.insert(tableName,
-                "column" to item.column,
-                "columnSpan" to item.columnSpan,
-                "row" to item.row,
-                "rowSpan" to item.rowSpan,
-                "content" to contentId
-        ), item.column, item.columnSpan, item.row, item.rowSpan, item.content)
+        return HomeScreenItem(helper.writableDatabase
+                .insert(tableName,
+                        "column" to item.column,
+                        "columnSpan" to item.columnSpan,
+                        "row" to item.row,
+                        "rowSpan" to item.rowSpan,
+                        "content" to contentId
+                ), item.column, item.columnSpan, item.row, item.rowSpan, item.content)
     }
 
     fun delete(item: HomeScreenItem<*>): Int {
-        return helper.writableDatabase.delete(tableName,
-                ("id" to item.id).toString())
+        return delete(item.id)
+    }
+
+    fun delete(id: Long): Int {
+        return helper.writableDatabase
+                .delete(tableName,
+                        "id = $id")
+    }
+
+    fun deleteByContent(content: Content): Int {
+        return helper.writableDatabase
+                .delete(tableName,
+                        "content = ${content.id}")
     }
 
     fun update(item: HomeScreenItem<*>) {
-        helper.writableDatabase.update(tableName,
-                "column" to item.column,
-                "columnSpan" to item.columnSpan,
-                "row" to item.row,
-                "rowSpan" to item.rowSpan)
+        helper.writableDatabase
+                .update(tableName,
+                        "column" to item.column,
+                        "columnSpan" to item.columnSpan,
+                        "row" to item.row,
+                        "rowSpan" to item.rowSpan)
                 .whereArgs("(id = {_id})",
                         "_id" to item.id)
                 .exec()

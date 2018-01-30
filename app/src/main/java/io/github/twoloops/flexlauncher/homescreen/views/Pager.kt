@@ -1,22 +1,22 @@
 package io.github.twoloops.flexlauncher.homescreen.views
 
-import android.animation.Animator
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
-import android.icu.util.UniversalTimeScale.toLong
 import android.os.Build
 import android.support.v4.content.ContextCompat
-import android.support.v4.view.GestureDetectorCompat
+import android.support.v4.view.ViewCompat
+import android.support.v4.view.ViewPager
 import android.util.AttributeSet
 import android.view.*
-import android.view.animation.AccelerateInterpolator
-import android.view.animation.DecelerateInterpolator
+import android.view.animation.Interpolator
+import android.widget.Scroller
 import com.eightbitlab.supportrenderscriptblur.SupportRenderScriptBlur
 import eightbitlab.com.blurview.BlurView
 import io.github.twoloops.flexlauncher.R
 import io.github.twoloops.flexlauncher.homescreen.contracts.PagerAdapter
+import kotlin.math.roundToInt
 
 
 class Pager : ViewGroup {
@@ -35,21 +35,8 @@ class Pager : ViewGroup {
             _currentPage = value
             scrollToPage()
         }
-    private var maxScrollX = 0
-    private var cancelAnimation = false
     private var color: Int = 0
     private var _dark: Boolean = false
-    private var lastEventX = 0f
-    private var lastEventY = 0f
-    private var startEventX = 0f
-    private var lastScrollX = 0
-    private var isDragged = false
-    private var pageWidth = 0
-    private var pageHeight = 0
-    private var scrollAnimator: ValueAnimator? = null
-    private val velocityTracker: VelocityTracker by lazy(LazyThreadSafetyMode.NONE) {
-        VelocityTracker.obtain()
-    }
     var dark: Boolean
         get() = _dark
         set(value) {
@@ -60,6 +47,50 @@ class Pager : ViewGroup {
                 ContextCompat.getColor(context, R.color.backgroundColorPrimary)
             }
         }
+
+    private var settingsPanelWidth = 0
+    private var pageHeight = 0
+    private var pageWidth = 0
+    private var leftBound = 0
+    private var rightBound = 0
+
+    private var lastEventX = 0f
+    private var lastEventY = 0f
+    private var startEventX = 0f
+    private var startEventY = 0f
+    private var lastScrollX = 0
+
+    private var isDragged = false
+    private var isSettingsPage = false
+
+    private var _scroller: Scroller? = null
+    private val scroller: Scroller by lazy(LazyThreadSafetyMode.NONE) {
+        val scrollerInterpolator = Interpolator { t ->
+            var t = t
+            t -= 1.0f
+            t * t * t * t * t + 1.0f
+        }
+        if (_scroller == null) {
+            _scroller = Scroller(context, scrollerInterpolator)
+        }
+        _scroller!!
+    }
+    private var _velocityTracker: VelocityTracker? = null
+    private val velocityTracker: VelocityTracker by lazy(LazyThreadSafetyMode.NONE) {
+        if (_velocityTracker == null) {
+            _velocityTracker = VelocityTracker.obtain()
+        }
+        _velocityTracker!!
+    }
+    private var _viewConfiguration: ViewConfiguration? = null
+    private val viewConfiguration: ViewConfiguration by lazy(LazyThreadSafetyMode.NONE) {
+        if (_viewConfiguration == null) {
+            _viewConfiguration = ViewConfiguration.get(context)
+        }
+        _viewConfiguration!!
+    }
+
+    private val MAX_SETTLE_DURATION = 600
 
     init {
         setFadingEdgeLength(0)
@@ -73,7 +104,8 @@ class Pager : ViewGroup {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         pageWidth = MeasureSpec.getSize(widthMeasureSpec)
         pageHeight = MeasureSpec.getSize(heightMeasureSpec)
-        maxScrollX = (_adapter!!.getCount() - 1) * pageWidth
+        settingsPanelWidth = pageWidth / 3
+        rightBound = (_adapter!!.getCount() - 1) * pageWidth + settingsPanelWidth
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
@@ -87,117 +119,185 @@ class Pager : ViewGroup {
                 view.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
                 view.layout(left, top, right, bottom)
             }
+            val settingsPanel: View = getChildAt(childCount - 1)
+            val left: Int = _adapter!!.getCount() * width
+            val top = 0
+            val right: Int = left + settingsPanelWidth
+            val bottom: Int = top + height
+            settingsPanel.measure(MeasureSpec.makeMeasureSpec(settingsPanelWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+            settingsPanel.layout(left, top, right, bottom)
         }
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
-        when (event?.action) {
+        val action = event!!.action and MotionEvent.ACTION_MASK
+        if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
+            endScroll()
+            return false
+        }
+        if (action == MotionEvent.ACTION_DOWN && isDragged) {
+            return true
+        }
+        when (action) {
             MotionEvent.ACTION_DOWN -> {
                 lastEventX = event.x
-                lastEventY = event.y
                 startEventX = lastEventX
+                lastEventY = event.y
+                startEventY = lastEventY
+                lastScrollX = scrollX
+                scroller.computeScrollOffset()
+                if (!scroller.isFinished) {
+                    scroller.abortAnimation()
+                    scrollToPage()
+                }
             }
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> isDragged = false
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
+                isDragged = false
+            }
             MotionEvent.ACTION_MOVE -> {
                 val x = event.x
                 val y = event.y
-                val xDelta = Math.abs(x - lastEventX)
-                val yDelta = Math.abs(y - lastEventY)
+                val dx = x - lastEventX
+                val xDelta = Math.abs(dx)
+                val yDelta = Math.abs(y - startEventY)
 
-                val xDeltaTotal = x - startEventX
-                if (xDelta > yDelta && Math.abs(xDeltaTotal) > ViewConfiguration.get(context).scaledTouchSlop) {
+                if (xDelta > yDelta && xDelta > viewConfiguration.scaledTouchSlop) {
                     isDragged = true
-                    startEventX = x
+                    requestParentDisallowInterceptTouchEvent(true)
+                    lastEventX = if (dx > 0) {
+                        startEventX + viewConfiguration.scaledTouchSlop
+                    } else {
+                        startEventX - viewConfiguration.scaledTouchSlop
+                    }
                     return true
+                }
+
+                if (isDragged) {
+                    scrollPager((lastScrollX + startEventX - x).roundToInt())
                 }
             }
         }
         return false
     }
 
-    override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
-        super.onScrollChanged(l, t, oldl, oldt)
-    }
-
     override fun onTouchEvent(event: MotionEvent?): Boolean {
+        velocityTracker.addMovement(event)
         when (event?.action) {
             MotionEvent.ACTION_UP -> {
-                velocityTracker.computeCurrentVelocity(1, ViewConfiguration.get(context).scaledMaximumFlingVelocity.toFloat())
-                val scrollXDelta = Math.abs(scrollX - lastScrollX)
-                if (scrollXDelta >= pageWidth / 3 || Math.abs(velocityTracker.xVelocity) >= ViewConfiguration.get(context).scaledMaximumFlingVelocity) {
-                    if (scrollX >= lastScrollX) {
-                        currentPage++
+                velocityTracker.computeCurrentVelocity(1000, viewConfiguration.scaledMaximumFlingVelocity.toFloat())
+                val pagerScrollDiff = Math.abs(lastScrollX - scrollX)
+                if (pagerScrollDiff > pageWidth / 3f || (isSettingsPage && pagerScrollDiff > pageWidth / 9f)) {
+                    if (lastScrollX - scrollX < 0) {
+                        if (currentPage < _adapter!!.getCount()) {
+                            currentPage++
+                        } else {
+                            scrollToPage()
+                        }
                     } else {
-                        currentPage--
+                        if (currentPage > 0) {
+                            currentPage--
+                        } else {
+                            scrollToPage()
+                        }
                     }
                 } else {
                     scrollToPage()
                 }
-            }
-            MotionEvent.ACTION_DOWN -> {
-                lastEventX = event.x
-                lastEventY = event.y
-                lastScrollX = scrollX
-                velocityTracker.clear()
+                isDragged = false
             }
             MotionEvent.ACTION_CANCEL -> {
-
+                isDragged = false
             }
             MotionEvent.ACTION_MOVE -> {
-                velocityTracker.addMovement(event)
-                if (scrollAnimator != null && scrollAnimator?.isRunning!!) {
-                    scrollAnimator?.cancel()
+                val x = event.x
+                val y = event.y
+                if (!isDragged) {
+                    scroller.abortAnimation()
+                    val xDiff: Float = Math.abs(lastEventX - x)
+                    val yDiff: Float = Math.abs(lastEventY - y)
+                    if (xDiff > viewConfiguration.scaledPagingTouchSlop && xDiff > yDiff) {
+                        isDragged = true
+                        requestParentDisallowInterceptTouchEvent(true)
+                        lastEventX = if (x - startEventX > 0) {
+                            startEventX + viewConfiguration.scaledPagingTouchSlop
+                        } else {
+                            startEventX - viewConfiguration.scaledPagingTouchSlop
+                        }
+                        lastEventY = y
+                    }
                 }
-                var xScrollDiff: Int = (lastScrollX + lastEventX - event.x).toInt()
-                if (xScrollDiff < 0) {
-                    xScrollDiff = 0
-                    lastScrollX = 0
-                    lastEventX = event.x
+                if (isDragged) {
+                    isSettingsPage = (x < startEventX && currentPage == 1) || currentPage == 2
+                    var scrollXDiff = startEventX - x
+                    if (isSettingsPage) {
+                        scrollXDiff *= 1f / 3
+                    }
+                    scrollPager((lastScrollX + scrollXDiff).roundToInt())
+
                 }
-                if (xScrollDiff > maxScrollX) {
-                    xScrollDiff = maxScrollX
-                }
-                scrollTo(xScrollDiff, y.toInt())
             }
         }
         return true
     }
 
-    private fun scrollToPage() {
-        val newScrollX = _currentPage * pageWidth
-        val scrollXAmount = Math.abs(newScrollX - scrollX)
-        val velocityX = 2f + Math.abs(velocityTracker.xVelocity)
-        scrollAnimator = ValueAnimator.ofInt(scrollX, newScrollX)
-        scrollAnimator?.addUpdateListener {
-            scrollTo(it.animatedValue as Int, y.toInt())
+    private fun scrollPager(xToScroll: Int) {
+        if (!scroller.isFinished) {
+            scroller.abortAnimation()
         }
-        scrollAnimator?.addListener(object : Animator.AnimatorListener {
-            override fun onAnimationStart(animation: Animator?) {
-            }
-
-            override fun onAnimationRepeat(animation: Animator?) {
-            }
-
-            override fun onAnimationEnd(animation: Animator?) {
-                lastScrollX = scrollX
-            }
-
-            override fun onAnimationCancel(animation: Animator?) {
-                lastScrollX = scrollX
-            }
-
-        })
-        scrollAnimator?.interpolator = DecelerateInterpolator()
-        val duration = Math.abs((2 * scrollXAmount) / velocityX).toLong()
-        scrollAnimator?.duration = if (duration < 100) {
-            100
-        } else {
-            duration
+        if (xToScroll in (leftBound + 1)..(rightBound - 1)) {
+            scrollTo(xToScroll, scrollY)
         }
-        scrollAnimator?.start()
     }
 
-    fun onPageScrolled(position: Int, offset: Float, offsetPixels: Int) {
+    private fun endScroll() {
+        isDragged = false
+        if (_velocityTracker != null) {
+            velocityTracker.recycle()
+            _velocityTracker = null
+        }
+    }
+
+    private fun requestParentDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
+        val parent = parent
+        parent?.requestDisallowInterceptTouchEvent(disallowIntercept)
+    }
+
+    private fun scrollToPage() {
+        lastScrollX = scrollX
+        val currentPageWidth = if (isSettingsPage) {
+            settingsPanelWidth
+        } else
+            pageWidth
+        var dx = (pageWidth * currentPage) - lastScrollX
+        if (isSettingsPage && currentPage == 2) {
+            dx -= pageWidth - currentPageWidth
+        }
+        val halfWidth = currentPageWidth / 2
+        val distanceRatio = Math.min(1f, 1.0f * Math.abs(dx) / currentPageWidth)
+        val distance = halfWidth + halfWidth * distanceInfluenceForSnapDuration(distanceRatio)
+        var duration: Int
+        val velocity = Math.abs(velocityTracker.xVelocity)
+        duration = if (velocity > 0) {
+            4 * Math.round(1000 * Math.abs(distance / velocity))
+        } else {
+            val pageDelta = Math.abs(dx).toFloat() / currentPageWidth
+            ((pageDelta + 1) * 100).toInt()
+        }
+        duration = Math.min(duration, MAX_SETTLE_DURATION)
+        scroller.forceFinished(true)
+        scroller.startScroll(lastScrollX, 0, dx, 0, duration)
+        ViewCompat.postInvalidateOnAnimation(this)
+    }
+
+    override fun computeScroll() {
+        if (!scroller.isFinished && scroller.computeScrollOffset()) {
+            scrollTo(scroller.currX, 0)
+            lastScrollX = scrollX
+            ViewCompat.postInvalidateOnAnimation(this)
+        }
+    }
+
+    private fun onPageScrolled(position: Int, offset: Float) {
         if (position == 0) {
             if (offset <= 0.5 && !_dark) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -210,9 +310,15 @@ class Pager : ViewGroup {
             }
             animateBackground(1 - offset)
         } else {
-            cancelAnimation = true
             (parent as BlurView).setBlurEnabled(false)
         }
+    }
+
+    private fun distanceInfluenceForSnapDuration(f: Float): Float {
+        var f = f
+        f -= 0.5f // center the values about 0.
+        f *= 0.3f * Math.PI.toFloat() / 2.0f
+        return Math.sin(f.toDouble()).toFloat()
     }
 
     private fun fillViewsFromAdapter() {
@@ -223,16 +329,13 @@ class Pager : ViewGroup {
             view = _adapter!!.getView(i)
             addView(view, i)
         }
+        addView(_adapter!!.getSettingsPanel())
     }
 
     fun resume() {
         val anim = ValueAnimator.ofFloat(Float.MIN_VALUE, 1.0f)
         anim.addUpdateListener { animation ->
             animateBackground(animation?.animatedValue as Float)
-            if (cancelAnimation) {
-                cancelAnimation = false
-                animation.cancel()
-            }
         }
         anim.duration = 400
         anim.start()

@@ -13,10 +13,11 @@ class HomeScreenContentController private constructor(context: Context) {
     private val helper: DatabaseOpenHelper = DatabaseOpenHelper.getInstance(context)
 
     fun save(contentId: Long, type: Int): Long {
-        return helper.writableDatabase.insert(tableName,
-                "contentId" to contentId,
-                "type" to type
-        )
+        return helper.writableDatabase
+                .insert(tableName,
+                        "contentId" to contentId,
+                        "type" to type
+                )
     }
 
     fun getAll(): List<Content> {
@@ -31,6 +32,20 @@ class HomeScreenContentController private constructor(context: Context) {
                 .whereArgs("(id = {_id})",
                         "_id" to id)
                 .parseSingle(Content.getParser())
+    }
+
+    fun getByContentId(contentId: Long): Content {
+        return helper.readableDatabase
+                .select(tableName)
+                .whereArgs("(contentId = {_contentId})",
+                        "_contentId" to contentId)
+                .parseSingle(Content.getParser())
+    }
+
+    fun delete(content: Content): Int {
+        return helper.writableDatabase
+                .delete(HomeScreenAppsController.tableName,
+                        ("id = ${content.id}").toString())
     }
 
     companion object : SingletonHolder<HomeScreenContentController, Context>(::HomeScreenContentController) {

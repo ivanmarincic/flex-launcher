@@ -55,20 +55,6 @@
 
         </LinearLayout>
 
-        <FrameLayout
-            android:id="@+id/homescreen_view_widgets_list"
-            android:layout_width="100dp"
-            android:layout_height="match_parent"
-            android:layout_gravity="end"
-            android:background="@color/backgroundColorPrimary"
-            android:visibility="invisible">
-            <ImageView
-                android:layout_gravity="center"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/ic_widgets"/>
-        </FrameLayout>
-
     </eightbitlab.com.blurview.BlurView>
 
 </android.support.design.widget.CoordinatorLayout>

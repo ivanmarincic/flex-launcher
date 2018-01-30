@@ -24,17 +24,16 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import io.github.twoloops.flexlauncher.R
-import io.github.twoloops.flexlauncher.helpers.Utils
 import io.github.twoloops.flexlauncher.database.controllers.HomeScreenAppsController
-import io.github.twoloops.flexlauncher.database.controllers.HomeScreenContentController
 import io.github.twoloops.flexlauncher.database.controllers.HomeScreenDashboardController
+import io.github.twoloops.flexlauncher.database.entities.App
 import io.github.twoloops.flexlauncher.database.entities.HomeScreenItem
 import io.github.twoloops.flexlauncher.getPreference
+import io.github.twoloops.flexlauncher.helpers.Utils
 import io.github.twoloops.flexlauncher.homescreen.adapters.BaseGridAdapter
 import io.github.twoloops.flexlauncher.homescreen.adapters.BasePagerAdapter
 import io.github.twoloops.flexlauncher.homescreen.contracts.GridAdapter
 import io.github.twoloops.flexlauncher.homescreen.contracts.HomeScreen
-import io.github.twoloops.flexlauncher.database.entities.App
 import io.github.twoloops.flexlauncher.homescreen.services.AppLoaderService
 import io.github.twoloops.flexlauncher.homescreen.services.WidgetLoaderService
 import io.github.twoloops.flexlauncher.homescreen.views.Grid
@@ -52,8 +51,8 @@ class HomeScreenPresenter : HomeScreen.Presenter {
 
     }
 
-    override fun initializePager(pager: Pager, grid: View, dashboard: View, wallpaperManager: WallpaperManager) {
-        pager.adapter = BasePagerAdapter(grid, dashboard)
+    override fun initializePager(pager: Pager, grid: View, dashboard: View, settingsPanel: View, wallpaperManager: WallpaperManager) {
+        pager.adapter = BasePagerAdapter(grid, dashboard, settingsPanel)
         if (Build.VERSION.SDK_INT >= 27) {
             pager.dark = Utils.isWallpaperDark(wallpaperManager)
         }
@@ -85,6 +84,10 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         grid.rowCount = view.getPreference("RowCount", 6)
         view.dashboardGrid = grid
         return dashboardView
+    }
+
+    override fun initializeSettingsPanel(parent: ViewGroup): View {
+        return LayoutInflater.from(view).inflate(R.layout.homescreen_view_settings_panel, parent, false)
     }
 
     override fun getItemsForApps(): ArrayList<HomeScreenItem<App>> {
@@ -138,7 +141,7 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         view.appGrid!!.adapter!!.dragAndDropListener = object : GridAdapter.DragAndDropListener {
             override fun onDragStart(event: DragEvent, gridItem: HomeScreenItem<*>, itemView: View) {
                 view.dashboardActions.alpha = 1f
-                if (view.pager.childCount == 2) {
+                if (view.pager.childCount >= 2) {
                     view.pager.currentPage = 1
                     draggedItem = gridItem
                 }
@@ -152,7 +155,7 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         view.dashboardGrid!!.adapter!!.dragAndDropListener = object : GridAdapter.DragAndDropListener {
             override fun onDragStart(event: DragEvent, gridItem: HomeScreenItem<*>, itemView: View) {
                 view.dashboardActions.alpha = 1f
-                if (view.pager.childCount == 2) {
+                if (view.pager.childCount >= 2) {
                     view.pager.currentPage = 1
                     draggedItem = gridItem
                 }
@@ -216,6 +219,8 @@ class HomeScreenPresenter : HomeScreen.Presenter {
                     view.startActivity(intent)
                     view.appGrid!!.adapter!!.removeItem(draggedItem!!)
                     view.dashboardGrid!!.adapter!!.removeItem(draggedItem!!)
+                    HomeScreenDashboardController.getInstance(view).delete(draggedItem!!)
+                    HomeScreenAppsController.getInstance(view).delete(draggedItem!!.content as App)
                     view.dashboardActions.alpha = 0f
                 }
             }
@@ -229,6 +234,7 @@ class HomeScreenPresenter : HomeScreen.Presenter {
                 }
                 DragEvent.ACTION_DROP -> {
                     view.dashboardGrid!!.adapter!!.removeItem(draggedItem!!)
+                    HomeScreenDashboardController.getInstance(view).delete(draggedItem!!)
                     draggedItem = null
                     view.dashboardActions.alpha = 0f
                 }
@@ -243,11 +249,11 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         widgets.mapTo(items) { view.dashboardGrid?.evaluateWidgetSize(it)!! }
         view.dashboardGrid!!.adapter!!.touchGestureListener = object : GridAdapter.TouchGestureListener {
             override fun onLongTouch() {
-                view.widgetsPanel.visibility = View.VISIBLE
+//                view.widgetsPanel.visibility = View.VISIBLE
             }
 
             override fun onDown() {
-                view.widgetsPanel.visibility = View.INVISIBLE
+//                view.widgetsPanel.visibility = View.INVISIBLE
             }
         }
     }

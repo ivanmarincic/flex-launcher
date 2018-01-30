@@ -3,24 +3,15 @@ package io.github.twoloops.flexlauncher.database.helpers
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.os.Environment
+import com.facebook.stetho.inspector.protocol.module.Database
 import io.github.twoloops.flexlauncher.database.controllers.*
+import io.github.twoloops.flexlauncher.helpers.SingletonHolder
 import org.jetbrains.anko.db.ManagedSQLiteOpenHelper
 import org.jetbrains.anko.db.dropTable
 import java.io.File
 
 
-class DatabaseOpenHelper(context: Context) : ManagedSQLiteOpenHelper(context, context.packageName + ".database", null, 21) {
-    companion object {
-        private var instance: DatabaseOpenHelper? = null
-
-        @Synchronized
-        fun getInstance(context: Context): DatabaseOpenHelper {
-            if (instance == null) {
-                instance = DatabaseOpenHelper(context.applicationContext)
-            }
-            return instance!!
-        }
-    }
+class DatabaseOpenHelper private constructor(context: Context) : ManagedSQLiteOpenHelper(context, context.packageName + ".database", null, 22) {
 
     override fun onCreate(db: SQLiteDatabase) {
         HomeScreenDashboardController.createTable(db)
@@ -42,6 +33,8 @@ class DatabaseOpenHelper(context: Context) : ManagedSQLiteOpenHelper(context, co
         db.dropTable(HomeScreenWidgetsController.tableName, true)
         HomeScreenWidgetsController.createTable(db)
     }
+
+    companion object : SingletonHolder<DatabaseOpenHelper, Context>(::DatabaseOpenHelper)
 }
 
 val Context.database: DatabaseOpenHelper

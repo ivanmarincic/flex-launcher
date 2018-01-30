@@ -6,4 +6,5 @@ import android.view.View
 interface PagerAdapter {
     fun getView(position: Int): View
     fun getCount(): Int
+    fun getSettingsPanel(): View
 }
