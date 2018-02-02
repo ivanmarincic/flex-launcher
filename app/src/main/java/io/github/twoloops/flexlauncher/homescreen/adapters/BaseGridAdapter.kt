@@ -9,9 +9,11 @@ import android.content.Context
 import android.content.pm.LauncherApps
 import android.content.pm.ShortcutInfo
 import android.database.DataSetObserver
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.os.Build
 import android.os.Process
 import android.view.*
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import io.github.twoloops.flexlauncher.R
@@ -19,6 +21,7 @@ import io.github.twoloops.flexlauncher.database.entities.HomeScreenItem
 import io.github.twoloops.flexlauncher.homescreen.contracts.GridAdapter
 import io.github.twoloops.flexlauncher.database.entities.App
 import io.github.twoloops.flexlauncher.homescreen.services.HapticFeedbackService
+import io.github.twoloops.flexlauncher.homescreen.views.AdaptiveIconView
 import io.github.twoloops.flexlauncher.homescreen.views.Grid
 
 
@@ -39,20 +42,31 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
     override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
         return convertView ?: when (getItemViewType(position)) {
             0 -> {
-                val rootView: View = convertView ?: LayoutInflater.from(parent!!.context).inflate(R.layout.homescreen_view_apps_item, parent, false)
+                val rootView: View = convertView
+                        ?: LayoutInflater.from(parent!!.context).inflate(R.layout.homescreen_apps_view_item, parent, false)
                 val item = getItem(position) as HomeScreenItem<App>
                 val textView: TextView = rootView.findViewById(R.id.homescreen_view_apps_app_label)
-                val imageView: ImageView = rootView.findViewById(R.id.homescreen_view_apps_app_icon)
+                val imageHolder: FrameLayout = rootView.findViewById(R.id.homescreen_view_apps_app_icon_holder)
                 textView.text = item.content.label
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    imageView.setImageDrawable(item.content.getIconDrawable(activity))
+                val drawable = item.content.getIconDrawable(activity)
+                val layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                @TargetApi(Build.VERSION_CODES.O)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && drawable::class == AdaptiveIconDrawable::class) {
+                    val adaptiveIconView = AdaptiveIconView(activity)
+                    adaptiveIconView.shapeId = AdaptiveIconView.SHAPE_CIRCLE
+                    adaptiveIconView.icon = drawable
+                    adaptiveIconView.layoutParams = layoutParams
+                    imageHolder.addView(adaptiveIconView)
                 } else {
-                    imageView.setImageDrawable(item.content.getIconDrawable(activity))
+                    val iconView = ImageView(activity)
+                    iconView.setImageDrawable(drawable)
+                    iconView.layoutParams = layoutParams
+                    imageHolder.addView(iconView)
                 }
                 return rootView
             }
             1 -> {
-                LayoutInflater.from(parent!!.context).inflate(R.layout.homescreen_view_apps_item, parent, false)
+                LayoutInflater.from(parent!!.context).inflate(R.layout.homescreen_apps_view_item, parent, false)
             }
             else -> {
                 View(activity)
@@ -61,7 +75,7 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
     }
 
     override fun getItemViewType(position: Int): Int {
-        return when (getItem(position)!!.content!!::class) {
+        return when (getItem(position)!!.content::class) {
             App::class -> 0
             AppWidgetProviderInfo::class -> 1
             else -> -1
@@ -79,7 +93,7 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
     }
 
     override fun removeItem(gridItem: HomeScreenItem<*>): Boolean {
-        if(items!!.remove(gridItem)){
+        if (items!!.remove(gridItem)) {
             notifyDataChanged()
             return true
         }
@@ -137,7 +151,7 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
     }
 
     override fun onPress(gridItem: HomeScreenItem<*>, itemView: View) {
-        activity.startActivity((gridItem.content!! as App).launchIntent)
+        activity.startActivity((gridItem.content as App).launchIntent)
         activity.overridePendingTransition(0, 0)
         touchGestureListener?.onDown()
         hapticFeedbackService.sendTouchFeedback(activity)
@@ -145,11 +159,11 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
 
     @TargetApi(Build.VERSION_CODES.N_MR1)
     override fun onLongPress(gridItem: HomeScreenItem<*>, itemView: View) {
-        val menuView: ViewGroup = LayoutInflater.from(activity).inflate(R.layout.homescreen_view_apps_menu, itemView.parent as Grid, false) as ViewGroup
+        val menuView: ViewGroup = LayoutInflater.from(activity).inflate(R.layout.homescreen_apps_view_menu, itemView.parent as Grid, false) as ViewGroup
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
             val launcherApps = activity.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
-            for (shortcut: ShortcutInfo in (gridItem.content!! as App).shortcuts!!) {
-                val shortcutView = LayoutInflater.from(activity).inflate(R.layout.homescreen_view_apps_menu_shortcut, menuView, false)
+            for (shortcut: ShortcutInfo in (gridItem.content as App).shortcuts) {
+                val shortcutView = LayoutInflater.from(activity).inflate(R.layout.homescreen_apps_view_menu_shortcut, menuView, false)
                 val textView: TextView = shortcutView.findViewById(R.id.homescreen_view_apps_menu_shortcut_label)
                 val imageView: ImageView = shortcutView.findViewById(R.id.homescreen_view_apps_menu_shortcut_icon)
                 textView.text = shortcut.shortLabel
@@ -169,8 +183,8 @@ open class BaseGridAdapter(private var activity: Activity) : GridAdapter {
     }
 
     override fun startDrag(gridItem: HomeScreenItem<*>, itemView: View) {
-        val clipItem: ClipData.Item = ClipData.Item((gridItem.content!! as App).label)
-        val clipData = ClipData((gridItem.content!! as App).label, arrayOf(ClipDescription.MIMETYPE_TEXT_PLAIN), clipItem)
+        val clipItem: ClipData.Item = ClipData.Item((gridItem.content as App).label)
+        val clipData = ClipData((gridItem.content as App).label, arrayOf(ClipDescription.MIMETYPE_TEXT_PLAIN), clipItem)
         val shadowBuilder: View.DragShadowBuilder = View.DragShadowBuilder(itemView)
         itemView.startDrag(clipData, shadowBuilder, itemView, 0)
     }

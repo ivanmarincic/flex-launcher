@@ -19,7 +19,6 @@ import android.support.v4.content.ContextCompat
 import android.view.DragEvent
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
@@ -32,6 +31,7 @@ import io.github.twoloops.flexlauncher.getPreference
 import io.github.twoloops.flexlauncher.helpers.Utils
 import io.github.twoloops.flexlauncher.homescreen.adapters.BaseGridAdapter
 import io.github.twoloops.flexlauncher.homescreen.adapters.BasePagerAdapter
+import io.github.twoloops.flexlauncher.homescreen.adapters.BasePagerAdapter.Companion.VIEW_SETTINGS
 import io.github.twoloops.flexlauncher.homescreen.contracts.GridAdapter
 import io.github.twoloops.flexlauncher.homescreen.contracts.HomeScreen
 import io.github.twoloops.flexlauncher.homescreen.services.AppLoaderService
@@ -39,6 +39,7 @@ import io.github.twoloops.flexlauncher.homescreen.services.WidgetLoaderService
 import io.github.twoloops.flexlauncher.homescreen.views.Grid
 import io.github.twoloops.flexlauncher.homescreen.views.HomeScreenView
 import io.github.twoloops.flexlauncher.homescreen.views.Pager
+import io.github.twoloops.flexlauncher.settings.views.SettingsView
 
 
 class HomeScreenPresenter : HomeScreen.Presenter {
@@ -51,15 +52,19 @@ class HomeScreenPresenter : HomeScreen.Presenter {
 
     }
 
-    override fun initializePager(pager: Pager, grid: View, dashboard: View, settingsPanel: View, wallpaperManager: WallpaperManager) {
-        pager.adapter = BasePagerAdapter(grid, dashboard, settingsPanel)
+    override fun initializePager(pager: Pager, grid: View, dashboard: View, optionsPanel: View, wallpaperManager: WallpaperManager) {
+        val adapter = BasePagerAdapter(view)
+        adapter.grid = grid
+        adapter.dashboard = dashboard
+        adapter.optionsPanel = optionsPanel
+        pager.adapter = adapter
         if (Build.VERSION.SDK_INT >= 27) {
             pager.dark = Utils.isWallpaperDark(wallpaperManager)
         }
     }
 
-    override fun initializeGrid(parent: ViewGroup, items: ArrayList<HomeScreenItem<App>>): View {
-        val gridView = LayoutInflater.from(view.applicationContext).inflate(R.layout.homescreen_view_apps, parent, false)
+    override fun initializeGrid(parent: Pager, items: ArrayList<HomeScreenItem<App>>): View {
+        val gridView = LayoutInflater.from(view.applicationContext).inflate(R.layout.homescreen_apps_view, parent, false)
         val grid = gridView.findViewById<Grid>(R.id.homescreen_view_apps_grid)
         val gridAdapter = BaseGridAdapter(view as Activity)
         gridAdapter.items = items as ArrayList<HomeScreenItem<*>>
@@ -73,8 +78,8 @@ class HomeScreenPresenter : HomeScreen.Presenter {
     }
 
 
-    override fun initializeDashboard(parent: ViewGroup, items: ArrayList<HomeScreenItem<*>>): View {
-        val dashboardView = LayoutInflater.from(view.applicationContext).inflate(R.layout.homescreen_view_dashboard, parent, false)
+    override fun initializeDashboard(parent: Pager, items: ArrayList<HomeScreenItem<*>>): View {
+        val dashboardView = LayoutInflater.from(view.applicationContext).inflate(R.layout.homescreen_dashboard_view, parent, false)
         val grid = dashboardView.findViewById<Grid>(R.id.homescreen_view_dashboard_grid)
         val gridAdapter = BaseGridAdapter(view as Activity)
         gridAdapter.items = items
@@ -86,8 +91,13 @@ class HomeScreenPresenter : HomeScreen.Presenter {
         return dashboardView
     }
 
-    override fun initializeSettingsPanel(parent: ViewGroup): View {
-        return LayoutInflater.from(view).inflate(R.layout.homescreen_view_settings_panel, parent, false)
+    override fun initializeOptionsPanel(parent: Pager): View {
+        val optionsPanel: View = LayoutInflater.from(view).inflate(R.layout.homescreen_options_panel_view, parent, false)
+        val settingsButton: ImageView = optionsPanel.findViewById(R.id.homescreen_view_settings_panel_settings_button)
+        settingsButton.setOnClickListener({
+            view.startActivity(Intent(view, SettingsView::class.java))
+        })
+        return optionsPanel
     }
 
     override fun getItemsForApps(): ArrayList<HomeScreenItem<App>> {
@@ -166,11 +176,11 @@ class HomeScreenPresenter : HomeScreen.Presenter {
                     val itemToAdd = view.dashboardGrid!!.evaluatePosition(event.x, event.y, draggedItem!!.clone() as HomeScreenItem<*>)
                     if (!view.dashboardGrid!!.adapter!!.hasItemInCell(itemToAdd)) {
                         if (view.dashboardGrid!!.adapter!!.removeItem(draggedItem!!)) {
-                            view.dashboardGrid!!.adapter!!.addItem(itemToAdd)
                             HomeScreenDashboardController.getInstance(view).update(itemToAdd)
                         } else {
                             HomeScreenDashboardController.getInstance(view).save(itemToAdd)
                         }
+                        view.dashboardGrid!!.adapter!!.addItem(itemToAdd)
                     }
                     view.dashboardActions.alpha = 0f
                 }

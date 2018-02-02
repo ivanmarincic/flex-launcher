@@ -2,4 +2,29 @@
     <string name="app.name">Flex Launcher</string>
     <string name="homescreen.view.apps.item.image_description">Application icon</string>
     <string name="homescreen.view.apps.item.default_label">Application label</string>
+
+    <!-- Preferences Headers -->
+    <string name="settings.view.title">Settings</string>
+    <string name="settings.view.headers.apps_title">Apps grid</string>
+    <string name="settings.view.headers.apps_summary">Manage apps grid preferences</string>
+    <string name="settings.view.headers.dashboard_title">Dashboard grid</string>
+    <string name="settings.view.headers.dashboard_summary">Manage dashboard grid preferences</string>
+    <string name="settings.view.headers.appearance_title">Apperance</string>
+    <string name="settings.view.headers.appearance_summary">Manage appearance preferences</string>
+    <!-- /Preferences Headers -->
+
+    <!-- Apps Preferences -->
+    <string name="settings.view.apps.grid_size_title">Grid size</string>
+    <string name="settings.view.apps.grid_width_title">Grid width</string>
+    <string name="settings.view.apps.grid_width_summary">Number of columns inside apps grid</string>
+    <string name="settings.view.apps.grid_height_title">Grid Size</string>
+    <string name="settings.view.apps.grid_height_summary">Number of rows inside apps grid</string>
+    <!-- /Apps Preferences -->
+    <!-- Dashboard Preferences -->
+    <string name="settings.view.dashboard.grid_size_title">Grid size</string>
+    <string name="settings.view.dashboard.grid_width_title">Grid width</string>
+    <string name="settings.view.dashboard.grid_width_summary">Number of columns inside apps grid</string>
+    <string name="settings.view.dashboard.grid_height_title">Grid Size</string>
+    <string name="settings.view.dashboard.grid_height_summary">Number of rows inside apps grid</string>
+    <!-- /Dashboard Preferences -->
 </resources>

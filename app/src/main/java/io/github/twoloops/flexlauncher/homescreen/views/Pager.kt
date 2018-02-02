@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.os.Build
 import android.support.v4.content.ContextCompat
 import android.support.v4.view.ViewCompat
-import android.support.v4.view.ViewPager
 import android.util.AttributeSet
 import android.view.*
 import android.view.animation.Interpolator
@@ -33,8 +32,9 @@ class Pager : ViewGroup {
         get() = _currentPage
         set(value) {
             _currentPage = value
-            scrollToPage()
+            scrollToPage(_currentPage)
         }
+    private var nextPage: Int = 0
     private var color: Int = 0
     private var _dark: Boolean = false
     var dark: Boolean
@@ -48,7 +48,7 @@ class Pager : ViewGroup {
             }
         }
 
-    private var settingsPanelWidth = 0
+    private var optionsPanelWidth = 0
     private var pageHeight = 0
     private var pageWidth = 0
     private var leftBound = 0
@@ -61,7 +61,7 @@ class Pager : ViewGroup {
     private var lastScrollX = 0
 
     private var isDragged = false
-    private var isSettingsPage = false
+    private var isOptionsPanel = false
 
     private var _scroller: Scroller? = null
     private val scroller: Scroller by lazy(LazyThreadSafetyMode.NONE) {
@@ -104,28 +104,43 @@ class Pager : ViewGroup {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         pageWidth = MeasureSpec.getSize(widthMeasureSpec)
         pageHeight = MeasureSpec.getSize(heightMeasureSpec)
-        settingsPanelWidth = pageWidth / 3
-        rightBound = (_adapter!!.getCount() - 1) * pageWidth + settingsPanelWidth
+        optionsPanelWidth = pageWidth / 3
+        rightBound = (_adapter!!.getScrollableCount() - 1) * pageWidth + optionsPanelWidth
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         if (_adapter != null) {
             for (i in 0 until _adapter!!.getCount()) {
-                val view: View = getChildAt(i)
-                val left: Int = i * width
-                val top = 0
-                val right: Int = left + width
-                val bottom: Int = top + height
-                view.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
-                view.layout(left, top, right, bottom)
+                when (i) {
+                    in 0..1 -> {
+                        val view: View = getChildAt(i)
+                        val left: Int = i * width
+                        val top = 0
+                        val right: Int = left + width
+                        val bottom: Int = top + height
+                        view.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+                        view.layout(left, top, right, bottom)
+                    }
+                    2 -> {
+                        val optionsPanel: View = getChildAt(i)
+                        val left: Int = i * width
+                        val top = 0
+                        val right: Int = left + optionsPanelWidth
+                        val bottom: Int = top + height
+                        optionsPanel.measure(MeasureSpec.makeMeasureSpec(optionsPanelWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+                        optionsPanel.layout(left, top, right, bottom)
+                    }
+                    else -> {
+                        val view: View = getChildAt(i)
+                        val left: Int = (i - 1) * width + optionsPanelWidth
+                        val top = 0
+                        val right: Int = left + width
+                        val bottom: Int = top + height
+                        view.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+                        view.layout(left, top, right, bottom)
+                    }
+                }
             }
-            val settingsPanel: View = getChildAt(childCount - 1)
-            val left: Int = _adapter!!.getCount() * width
-            val top = 0
-            val right: Int = left + settingsPanelWidth
-            val bottom: Int = top + height
-            settingsPanel.measure(MeasureSpec.makeMeasureSpec(settingsPanelWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
-            settingsPanel.layout(left, top, right, bottom)
         }
     }
 
@@ -147,33 +162,27 @@ class Pager : ViewGroup {
                 lastScrollX = scrollX
                 scroller.computeScrollOffset()
                 if (!scroller.isFinished) {
-                    scroller.abortAnimation()
-                    scrollToPage()
+                    scrollPager(lastEventX)
                 }
             }
             MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
                 isDragged = false
             }
             MotionEvent.ACTION_MOVE -> {
-                val x = event.x
-                val y = event.y
+                val x = event.getX(0)
+                val y = event.getY(0)
                 val dx = x - lastEventX
                 val xDelta = Math.abs(dx)
                 val yDelta = Math.abs(y - startEventY)
 
                 if (xDelta > yDelta && xDelta > viewConfiguration.scaledTouchSlop) {
                     isDragged = true
-                    requestParentDisallowInterceptTouchEvent(true)
                     lastEventX = if (dx > 0) {
                         startEventX + viewConfiguration.scaledTouchSlop
                     } else {
                         startEventX - viewConfiguration.scaledTouchSlop
                     }
                     return true
-                }
-
-                if (isDragged) {
-                    scrollPager((lastScrollX + startEventX - x).roundToInt())
                 }
             }
         }
@@ -184,40 +193,38 @@ class Pager : ViewGroup {
         velocityTracker.addMovement(event)
         when (event?.action) {
             MotionEvent.ACTION_UP -> {
+                isDragged = false
                 velocityTracker.computeCurrentVelocity(1000, viewConfiguration.scaledMaximumFlingVelocity.toFloat())
                 val pagerScrollDiff = Math.abs(lastScrollX - scrollX)
-                if (pagerScrollDiff > pageWidth / 3f || (isSettingsPage && pagerScrollDiff > pageWidth / 9f)) {
+                if (pagerScrollDiff > pageWidth / 4f || (isOptionsPanel && pagerScrollDiff > pageWidth / 9f)) {
                     if (lastScrollX - scrollX < 0) {
-                        if (currentPage < _adapter!!.getCount()) {
-                            currentPage++
+                        if (currentPage < (_adapter!!.getCount() - 1)) {
+                            scrollToPage(currentPage + 1)
                         } else {
-                            scrollToPage()
+                            scrollToPage(currentPage)
                         }
                     } else {
                         if (currentPage > 0) {
-                            currentPage--
+                            scrollToPage(currentPage - 1)
                         } else {
-                            scrollToPage()
+                            scrollToPage(currentPage)
                         }
                     }
                 } else {
-                    scrollToPage()
+                    scrollToPage(currentPage)
                 }
-                isDragged = false
             }
             MotionEvent.ACTION_CANCEL -> {
                 isDragged = false
             }
             MotionEvent.ACTION_MOVE -> {
-                val x = event.x
-                val y = event.y
+                val x = event.getX(0)
+                val y = event.getY(0)
                 if (!isDragged) {
-                    scroller.abortAnimation()
                     val xDiff: Float = Math.abs(lastEventX - x)
                     val yDiff: Float = Math.abs(lastEventY - y)
                     if (xDiff > viewConfiguration.scaledPagingTouchSlop && xDiff > yDiff) {
                         isDragged = true
-                        requestParentDisallowInterceptTouchEvent(true)
                         lastEventX = if (x - startEventX > 0) {
                             startEventX + viewConfiguration.scaledPagingTouchSlop
                         } else {
@@ -227,12 +234,7 @@ class Pager : ViewGroup {
                     }
                 }
                 if (isDragged) {
-                    isSettingsPage = (x < startEventX && currentPage == 1) || currentPage == 2
-                    var scrollXDiff = startEventX - x
-                    if (isSettingsPage) {
-                        scrollXDiff *= 1f / 3
-                    }
-                    scrollPager((lastScrollX + scrollXDiff).roundToInt())
+                    scrollPager(x)
 
                 }
             }
@@ -240,36 +242,43 @@ class Pager : ViewGroup {
         return true
     }
 
-    private fun scrollPager(xToScroll: Int) {
-        if (!scroller.isFinished) {
-            scroller.abortAnimation()
-        }
-        if (xToScroll in (leftBound + 1)..(rightBound - 1)) {
-            scrollTo(xToScroll, scrollY)
+    fun openOptionsView(viewId: Int) {
+        if (isOptionsPanel) {
+            _adapter!!.setViewForOptionsPanel(viewId)
+            scrollToPage(3)
         }
     }
 
-    private fun endScroll() {
-        isDragged = false
-        if (_velocityTracker != null) {
-            velocityTracker.recycle()
-            _velocityTracker = null
+    private fun scrollPager(xToScroll: Float) {
+        var scrollXDiff = startEventX - xToScroll
+        if (isOptionsPanel) {
+            scrollXDiff *= 1f / 3
+        }
+        var newScrollX = (lastScrollX + scrollXDiff).roundToInt()
+        if (newScrollX in (leftBound)..(rightBound)) {
+            if (!scroller.isFinished) {
+                scroller.forceFinished(true)
+            }
+            if (!isOptionsPanel && newScrollX > pageWidth) {
+                newScrollX -= (scrollXDiff - (scrollXDiff * (1f / 3))).roundToInt()
+            }
+            isOptionsPanel = newScrollX > pageWidth
+            if (newScrollX in (leftBound)..(rightBound)) {
+                onScroll(newScrollX)
+                scrollTo(newScrollX, scrollY)
+            }
         }
     }
 
-    private fun requestParentDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
-        val parent = parent
-        parent?.requestDisallowInterceptTouchEvent(disallowIntercept)
-    }
-
-    private fun scrollToPage() {
+    private fun scrollToPage(page: Int) {
+        nextPage = page
         lastScrollX = scrollX
-        val currentPageWidth = if (isSettingsPage) {
-            settingsPanelWidth
+        val currentPageWidth = if (isOptionsPanel) {
+            optionsPanelWidth
         } else
             pageWidth
-        var dx = (pageWidth * currentPage) - lastScrollX
-        if (isSettingsPage && currentPage == 2) {
+        var dx = (pageWidth * page) - lastScrollX
+        if (isOptionsPanel && page >= 2) {
             dx -= pageWidth - currentPageWidth
         }
         val halfWidth = currentPageWidth / 2
@@ -284,34 +293,68 @@ class Pager : ViewGroup {
             ((pageDelta + 1) * 100).toInt()
         }
         duration = Math.min(duration, MAX_SETTLE_DURATION)
+        if (lastScrollX + dx < leftBound) {
+            dx = lastScrollX * (-1)
+        }
         scroller.forceFinished(true)
         scroller.startScroll(lastScrollX, 0, dx, 0, duration)
         ViewCompat.postInvalidateOnAnimation(this)
     }
 
-    override fun computeScroll() {
-        if (!scroller.isFinished && scroller.computeScrollOffset()) {
-            scrollTo(scroller.currX, 0)
-            lastScrollX = scrollX
-            ViewCompat.postInvalidateOnAnimation(this)
+    private fun endScroll() {
+        isDragged = false
+        if (_velocityTracker != null) {
+            velocityTracker.recycle()
+            _velocityTracker = null
         }
     }
 
-    private fun onPageScrolled(position: Int, offset: Float) {
-        if (position == 0) {
-            if (offset <= 0.5 && !_dark) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                }
-            } else {
+    override fun computeScroll() {
+        if (!scroller.isFinished && scroller.computeScrollOffset()) {
+            if (scroller.currX != scrollX) {
+                onScroll(scroller.currX)
+                scrollTo(scroller.currX, 0)
+                lastScrollX = scrollX
+            }
+            ViewCompat.postInvalidateOnAnimation(this)
+        } else if (!isDragged) {
+            _currentPage = nextPage
+        }
+    }
+
+    private fun onPageScrolled(currentPosition: Int, nextPosition: Int, offset: Float) {
+        if (currentPosition == 0 || nextPosition == 0) {
+            if (offset >= 0.5 && !_dark) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                     systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                }
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
                 }
             }
             animateBackground(1 - offset)
         } else {
             (parent as BlurView).setBlurEnabled(false)
         }
+    }
+
+    private fun onScroll(newScroll: Int) {
+        val adjustedNextPage = if (isDragged) {
+            if (lastScrollX > scrollX) {
+                nextPage - 1
+            } else {
+                nextPage + 1
+            }
+        } else {
+            nextPage
+        }
+        val pageOffset: Float = if (isOptionsPanel) {
+            ((newScroll.toFloat() - pageWidth) / optionsPanelWidth)
+        } else {
+            (newScroll.toFloat() / pageWidth)
+        }
+        onPageScrolled(currentPage, adjustedNextPage, pageOffset)
     }
 
     private fun distanceInfluenceForSnapDuration(f: Float): Float {
@@ -325,26 +368,35 @@ class Pager : ViewGroup {
         removeAllViews()
         var view: View
         if (_adapter == null) return
-        for (i in 0 until _adapter!!.getCount()) {
+        for (i in 0 until (_adapter!!.getCount() - 2)) {
             view = _adapter!!.getView(i)
             addView(view, i)
         }
-        addView(_adapter!!.getSettingsPanel())
+        addView(_adapter!!.getOptionsView())
+        addView(_adapter!!.initOptionsViewHolder(this))
     }
 
-    fun resume() {
+    fun pausePager() {
+    }
+
+    fun resumePager() {
         val anim = ValueAnimator.ofFloat(Float.MIN_VALUE, 1.0f)
         anim.addUpdateListener { animation ->
-            animateBackground(animation?.animatedValue as Float)
+            val animationFloat = if (currentPage == 0) {
+                animation?.animatedValue as Float
+            } else {
+                1f - animation?.animatedValue as Float
+            }
+            animateBackground(animationFloat)
         }
-        anim.duration = 400
+        anim.duration = 600
         anim.start()
     }
 
     private fun animateBackground(progress: Float) {
         val color = String.format("#%02X", (255 * 0.5 * progress).toInt()) + String.format("%06X", 0xFFFFFF and color)
         setBackgroundColor(Color.parseColor(color))
-        val radius = 10f * progress
+        val radius = Math.max(10f * progress, Float.MIN_VALUE)
         val decorView = (context as Activity).window.decorView
         (parent as BlurView).setupWith(decorView.findViewById(android.R.id.content) as ViewGroup)
                 .windowBackground(decorView.background)

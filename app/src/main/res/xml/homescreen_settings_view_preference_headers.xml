@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<preference-headers xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <header
+        android:fragment="io.github.twoloops.flexlauncher.settings.views.AppsSettingsFragment"
+        android:icon="@drawable/ic_apps"
+        android:summary="@string/settings.view.headers.apps_summary"
+        android:title="@string/settings.view.headers.apps_title" />
+
+    <header
+        android:fragment="io.github.twoloops.flexlauncher.settings.views.AppsSettingsFragment"
+        android:icon="@drawable/ic_dashboard"
+        android:summary="@string/settings.view.headers.dashboard_summary"
+        android:title="@string/settings.view.headers.dashboard_title" />
+
+    <header
+        android:fragment="io.github.twoloops.flexlauncher.settings.views.AppsSettingsFragment"
+        android:icon="@drawable/ic_appearance"
+        android:summary="@string/settings.view.headers.appearance_summary"
+        android:title="@string/settings.view.headers.appearance_title" />
+
+</preference-headers>

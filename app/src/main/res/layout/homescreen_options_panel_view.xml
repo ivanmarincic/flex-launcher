@@ -37,6 +37,7 @@
         android:layout_weight="1">
 
         <ImageView
+            android:id="@+id/homescreen_view_settings_panel_settings_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"

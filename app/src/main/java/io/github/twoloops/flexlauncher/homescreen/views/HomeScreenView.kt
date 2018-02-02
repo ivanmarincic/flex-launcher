@@ -62,7 +62,7 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
                 pager,
                 presenter.initializeGrid(pager, presenter.getItemsForApps()),
                 presenter.initializeDashboard(pager, presenter.getItemsForDashboard()),
-                presenter.initializeSettingsPanel(pager),
+                presenter.initializeOptionsPanel(pager),
                 wallpaperManager)
         pagerInitialized = true
         presenter.initializeDragging()
@@ -83,10 +83,10 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
     override fun onResume() {
         super.onResume()
         overridePendingTransition(0, 0)
+        if (pagerInitialized) {
+            pager.resumePager()
+        }
         if (pager.currentPage == 0) {
-            if (pagerInitialized) {
-                pager.resume()
-            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val isDark = if (Build.VERSION.SDK_INT >= 27) {
                     Utils.isWallpaperDark(wallpaperManager)
@@ -101,6 +101,13 @@ class HomeScreenView : AppCompatActivity(), HomeScreen.View {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                 pager.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (pagerInitialized) {
+            pager.pausePager()
         }
     }
 

@@ -2,31 +2,18 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:gravity="center"
+    android:orientation="vertical"
     android:padding="8dp">
 
-    <io.github.twoloops.flexlauncher.homescreen.views.AdaptiveIconView
-        android:id="@+id/homescreen_view_apps_app_adaptive_icon"
+    <FrameLayout
+        android:id="@+id/homescreen_view_apps_app_icon_holder"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_gravity="center_horizontal"
         android:layout_weight="0.65"
         android:contentDescription="@string/homescreen.view.apps.item.image_description"
-        android:scaleType="fitCenter"
-        android:visibility="gone"
-        android:src="@mipmap/ic_launcher_round" />
-
-    <ImageView
-        android:id="@+id/homescreen_view_apps_app_icon"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_weight="0.65"
-        android:padding="8dp"
-        android:contentDescription="@string/homescreen.view.apps.item.image_description"
-        android:scaleType="fitCenter"
-        android:src="@mipmap/ic_launcher_round" />
+        android:padding="8dp" />
 
     <TextView
         android:id="@+id/homescreen_view_apps_app_label"

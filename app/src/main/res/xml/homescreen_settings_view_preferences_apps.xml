@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory
+        android:key="settings_view_apps_grid_size"
+        android:title="@string/settings.view.apps.grid_size_title">
+        <EditTextPreference
+            android:key="settings_view_apps_grid_width"
+            android:summary="@string/settings.view.apps.grid_width_summary"
+            android:title="@string/settings.view.apps.grid_width_title" />
+        <EditTextPreference
+            android:key="settings_view_apps_grid_height"
+            android:summary="@string/settings.view.apps.grid_height_summary"
+            android:title="@string/settings.view.apps.grid_height_title" />
+    </PreferenceCategory>
+</PreferenceScreen>

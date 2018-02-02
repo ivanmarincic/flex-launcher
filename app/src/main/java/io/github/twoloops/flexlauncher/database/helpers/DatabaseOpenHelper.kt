@@ -11,7 +11,7 @@ import org.jetbrains.anko.db.dropTable
 import java.io.File
 
 
-class DatabaseOpenHelper private constructor(context: Context) : ManagedSQLiteOpenHelper(context, context.packageName + ".database", null, 22) {
+class DatabaseOpenHelper private constructor(context: Context) : ManagedSQLiteOpenHelper(context, context.packageName + ".database", null, 23) {
 
     override fun onCreate(db: SQLiteDatabase) {
         HomeScreenDashboardController.createTable(db)
